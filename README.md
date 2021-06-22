@@ -192,21 +192,22 @@ class Book < ApplicationRecord
   include MeiliSearch
 
   meilisearch do
-    searchableAttributes ['title', 'author', 'publisher', 'description']
-    attributesForFaceting ['genre']
+    searchableAttributes [:title, :author, :publisher, :description]
+    attributesForFaceting [:genre]
     rankingRules [
-        "proximity",
-        "typo",
-        "words",
-        "attribute",
-        "wordsPosition",
-        "exactness",
-        "desc(publication_year)"
+      "proximity",
+      "typo",
+      "words",
+      "attribute",
+      "wordsPosition",
+      "exactness",
+      "desc(publication_year)"
     ]
-    synonyms nyc: ['new york']
-    // The following parameters are applied when calling the search() method:
-    attributesToHighlight ['*']
-    attributesToCrop ['description']
+    synonyms nyc: ["new york"]
+
+    # The following parameters are applied when calling the search() method:
+    attributesToHighlight ["*"]
+    attributesToCrop [:description]
     cropLength 10
   end
 end
@@ -234,6 +235,7 @@ By default, the **index_uid** will be the class name, e.g. `Book`. You can custo
 ```ruby
 class Book < ActiveRecord::Base
   include MeiliSearch
+
   meilisearch index_uid: 'MyCustomUID' do
   end
 end
@@ -246,6 +248,7 @@ You can suffix the index UID with the current Rails environment using the follow
 ```ruby
 class Book < ActiveRecord::Base
   include MeiliSearch
+
   meilisearch per_environment: true do # The index UID will be "Book_#{Rails.env}"
   end
 end
@@ -287,13 +290,14 @@ end
 
 #### Custom primary key
 
-By default, the `primary key` is based on your record's id. You can change this behavior specifying the `:primary_key` option.
+By default, the primary key is based on your record’s id. You can change this behavior specifying the `primary_key:` option.
 
 Note that the primary key must have a **unique value**.
 
 ```ruby
 class Book < ActiveRecord::Base
   include MeiliSearch
+
   meilisearch primary_key: 'ISBN' do
   end
 end
@@ -307,7 +311,7 @@ As soon as you use those constraints, `add_documents` and `delete_documents` cal
 class Book < ActiveRecord::Base
   include MeiliSearch
 
-  meilisearch :if published?, :unless premium? do
+  meilisearch if: :published?, unless: :premium? do
   end
 
   def published?
@@ -319,7 +323,7 @@ class Book < ActiveRecord::Base
   end
 
   def will_save_change_to_published?
-  # return true only if you know that the 'published' state changed
+    # return true only if you know that the 'published' state changed
   end
 end
 ```
@@ -329,7 +333,6 @@ You can index a record in several indexes using the `add_index` option:
 
 ```ruby
 class Book < ActiveRecord::Base
-
   include MeiliSearch
 
   PUBLIC_INDEX_UID = 'Books'
@@ -347,7 +350,7 @@ class Book < ActiveRecord::Base
 
   private
   def public?
-    released && !premium
+    released? && !premium?
   end
 end
 ```
@@ -399,18 +402,31 @@ end
 
 In this case you can bypass loading the record from **ActiveRecord** and just communicate with the index directly.
 
+With **ActiveJob**:
+
 ```ruby
+class Book < ActiveRecord::Base
+  include MeiliSearch
+
+  meilisearch enqueue: :trigger_job do
+    attribute :title, :author, :description
+  end
+
+  def self.trigger_job(record, remove)
+    MyActiveJob.perform_later(record.id, remove)
+  end
+end
+
 class MyActiveJob < ApplicationJob
   def perform(id, remove)
     if remove
-      # the record has likely already been removed from your database so we cannot
-      # use ActiveRecord#find to load it
-      # We access the underlying MeiliSearch index object
+      # The record has likely already been removed from your database so we cannot
+      # use ActiveRecord#find to load it.
+      # We access the underlying MeiliSearch index object.
       Book.index.delete_document(id)
     else
-      # the record should be present
-      c = Book.find(id)
-      c.index!
+      # The record should be present.
+      Book.find(id).index!
     end
   end
 end
@@ -434,14 +450,13 @@ end
 class MySidekiqWorker
   def perform(id, remove)
     if remove
-      # the record has likely already been removed from your database so we cannot
-      # use ActiveRecord#find to load it
-      # We access the underlying MeiliSearch index object
-      index = Book.index.delete_document(id)
+      # The record has likely already been removed from your database so we cannot
+      # use ActiveRecord#find to load it.
+      # We access the underlying MeiliSearch index object.
+      Book.index.delete_document(id)
     else
-      # the record should be present
-      c = Contact.find(id)
-      c.index!
+      # The record should be present.
+      Book.find(id).index!
     end
   end
 end
@@ -471,7 +486,7 @@ end
 
 Extend a change to a related record.
 
-**With Active Record**, you'll need to use `touch` and `after_touch`.
+**With ActiveRecord**, you'll need to use `touch` and `after_touch`.
 
 ```ruby
 class Author < ActiveRecord::Base
@@ -608,7 +623,6 @@ index = Book.index
 
 ### Development & testing
 
-
 #### Exceptions
 
 You can disable exceptions that could be raised while trying to reach MeiliSearch's API by using the `raise_on_failure` option:
@@ -624,7 +638,9 @@ end
 ```
 
 #### Testing
+
 ##### Synchronous testing
+
 You can force indexing and removing to be synchronous by setting the following option:
 
 ```ruby
